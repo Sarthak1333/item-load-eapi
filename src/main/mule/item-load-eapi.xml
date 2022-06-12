@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd 
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+    <http:listener-config name="item-load-eapi-httpListenerConfig">
+        <http:listener-connection host="${http.host}" port="${http.port}" />
+    </http:listener-config>
+    <apikit:config name="item-load-eapi-config" api="item-load-eapi.raml" outboundHeadersMapName="outboundHeaders" httpStatusVarName="httpStatus" />
+    <http:request-config name="HTTP_Request_configuration_advertisers" doc:name="HTTP Request configuration" doc:id="7d3b09b1-476f-40fd-9543-b4a569813160" >
+		<http:request-connection host="${httprequest.host4}" port="${httprequest.port4}" />
+	</http:request-config>
+	<http:request-config name="HTTP_Request_configuration_campaigns" doc:name="HTTP Request configuration" doc:id="fd72fd17-9cb8-493e-872d-de9a08fef7fe" >
+		<http:request-connection host="${httprequest.host5}" port="${httprequest.port5}" />
+	</http:request-config>
+	<configuration-properties doc:name="Configuration properties" doc:id="8beb5c27-bf4f-4b1b-bfb8-3f826f02c826" file="properties/local.yaml" />
+	<flow name="item-load-eapi-main">
+        <http:listener config-ref="item-load-eapi-httpListenerConfig" path="/api/*">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body>#[payload]</http:body>
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:error-response>
+        </http:listener>
+        <apikit:router config-ref="item-load-eapi-config" />
+    </flow>
+    <flow name="item-load-eapi-console">
+        <http:listener config-ref="item-load-eapi-httpListenerConfig" path="/console/*">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body>#[payload]</http:body>
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:error-response>
+        </http:listener>
+        <apikit:console config-ref="item-load-eapi-config" />
+        <error-handler>
+            <on-error-propagate type="APIKIT:NOT_FOUND">
+                <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Resource not found"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">404</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+        </error-handler>
+    </flow>
+    <flow name="post:\Itemload:application\json:item-load-eapi-config">
+        <logger level="INFO" message="post:\Itemload:application\json:item-load-eapi-config" />
+		<ee:transform doc:name="Transform Message" doc:id="c11d88d4-decf-4602-a377-b0564dbd6f13" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="1c258154-c2dc-4246-8f98-9e2b66223c23" message="#[payload]"/>
+		<choice doc:name="Choice" doc:id="8c9e448b-aaa5-41a3-9602-e5a443fc8b05" >
+			<when expression='#[payload.Data == "Campaigns"]'>
+				<try doc:name="Try" doc:id="714d58d4-cc13-492c-a0b9-d68fb32975a9" >
+					<http:request method="PUT" doc:name="Request" doc:id="de7a43c7-49af-4d7b-917c-3d2a7392863b" config-ref="HTTP_Request_configuration_campaigns" path="/api/campaigns" responseTimeout="300000" />
+					<error-handler >
+						<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="95be0760-85de-4211-bef2-63e56d9f3d7d" >
+							<ee:transform doc:name="Transform Message" doc:id="94995d02-46aa-4a51-9a4d-78bc151f1723" >
+								<ee:message >
+									<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"timestamp": now(),
+	"errorType": error.cause.Type,
+	"errorMessage": error.description
+}]]></ee:set-payload>
+								</ee:message>
+							</ee:transform>
+							<logger level="INFO" doc:name="Logger" doc:id="3ce8d4cd-48d5-4a82-b5d1-3b73421ed640" message="#[payload]"/>
+						</on-error-propagate>
+					</error-handler>
+				</try>
+				<logger level="INFO" doc:name="Logger" doc:id="66b98e44-55d0-4493-ae67-6d3483f48c27" message="#[payload]"/>
+			</when>
+			<when expression='#[payload.Data == "advertisers"]'>
+				<try doc:name="Try" doc:id="9e368af2-2109-466a-9150-7eb761ad39c6" >
+					<http:request method="PUT" doc:name="Request" doc:id="4e1e7c5c-c96e-4579-8804-a852cd918820" config-ref="HTTP_Request_configuration_advertisers" path="/api/advertisers" responseTimeout="300000" />
+					<error-handler >
+						<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="f5006864-030b-4984-aedc-02be487baa75" >
+							<ee:transform doc:name="Transform Message" doc:id="dd7f9517-dc86-457f-82df-ef998fb04912" >
+								<ee:message >
+									<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"timestamp": now(),
+	"errorType": error.cause.Type,
+	"errorMessage": error.description
+}]]></ee:set-payload>
+								</ee:message>
+							</ee:transform>
+							<logger level="INFO" doc:name="Logger" doc:id="b4a2c9c5-0f98-4234-86ba-44f37d696391" message="#[payload]"/>
+						</on-error-propagate>
+					</error-handler>
+				</try>
+				<logger level="INFO" doc:name="Logger" doc:id="a8e92549-f586-4c87-9d32-f06647fea6f8" message="#[payload]"/>
+			</when>
+			<otherwise >
+				<logger level="INFO" doc:name="Logger" doc:id="ef5ab406-3ab4-4b16-86c5-c023a5228049" message="please provide data type"/>
+			</otherwise>
+		</choice>
+		<ee:transform doc:name="Transform Message" doc:id="904bebfc-6bfa-4853-b99e-167112673804" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+    </flow>
+</mule>
