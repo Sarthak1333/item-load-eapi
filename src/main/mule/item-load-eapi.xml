@@ -11,7 +11,7 @@ http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/
 	<http:request-config name="HTTP_Request_configuration_campaigns" doc:name="HTTP Request configuration" doc:id="fd72fd17-9cb8-493e-872d-de9a08fef7fe" >
 		<http:request-connection host="${httprequest.host5}" port="${httprequest.port5}" />
 	</http:request-config>
-	<configuration-properties doc:name="Configuration properties" doc:id="8beb5c27-bf4f-4b1b-bfb8-3f826f02c826" file="properties/local.yaml" />
+	<configuration-properties doc:name="Configuration properties" doc:id="8beb5c27-bf4f-4b1b-bfb8-3f826f02c826" file="properties/Sandbox.yaml" />
 	<flow name="item-load-eapi-main">
         <http:listener config-ref="item-load-eapi-httpListenerConfig" path="/api/*">
             <http:response statusCode="#[vars.httpStatus default 200]">
